@@ -1,0 +1,27 @@
+# virtual environment
+venv/
+.env
+
+# chromadb persistent store
+chroma_db/
+
+# Notes file
+NOTES.txt
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# streamlit cache
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
