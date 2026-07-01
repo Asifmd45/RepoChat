@@ -1,5 +1,5 @@
 import streamlit as st
-from github_ingestor import ingest_repo
+from github_ingestor import ingest_repo, RepoTooLargeError
 from chunker import chunk_documents
 from vector_store import build_vector_store, load_vector_store, get_retriever
 from rag_chain import build_rag_chain, run_query, format_chat_history
@@ -10,6 +10,94 @@ st.set_page_config(
     page_icon="🐙",
     layout="wide"
 )
+
+DEMO_REPOS = [
+    {
+        "name": "micrograd",
+        "repo_url": "https://github.com/karpathy/micrograd",
+        "description": "Tiny autograd engine by Karpathy",
+        "audience": "⚡ ML / Deep Learning",
+        "questions": [
+            "What does this project do?",
+            "How does backpropagation work here?",
+            "Explain the Value class and its role"
+        ]
+    },
+    {
+        "name": "flask",
+        "repo_url": "https://github.com/pallets/flask",
+        "description": "Python micro web framework",
+        "audience": "🐍 Python / Web Dev",
+        "questions": [
+            "What is the overall architecture?",
+            "How does request routing work?",
+            "How does Flask handle middleware?"
+        ]
+    },
+    {
+        "name": "express",
+        "repo_url": "https://github.com/expressjs/express",
+        "description": "Fast Node.js web framework",
+        "audience": "🟩 Node.js / Backend",
+        "questions": [
+            "What does this project do?",
+            "How does middleware chaining work?",
+            "How are routes defined and matched?"
+        ]
+    }
+]
+
+UNIVERSAL_QUESTIONS = [
+    "What does this project do?",
+    "What is the overall system architecture?",
+    "What is the complete tech stack used?"
+]
+
+
+def estimate_load_time(doc_count: int) -> str:
+    if doc_count < 100:
+        return "10-20 seconds"
+    elif doc_count < 500:
+        return "30-60 seconds"
+    elif doc_count < 1500:
+        return "1-3 minutes"
+    elif doc_count < 3000:
+        return "3-6 minutes"
+    else:
+        return "6+ minutes (very large repo)"
+
+
+def get_suggested_questions(repo_url: str) -> list[str]:
+    for demo in DEMO_REPOS:
+        if demo["repo_url"] == repo_url:
+            return demo["questions"]
+    return UNIVERSAL_QUESTIONS
+
+
+def trigger_load(url: str):
+    st.session_state.pending_load_url = url
+
+
+# ── Session state init ────────────────────────────────────────────────────────
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "repo_loaded" not in st.session_state:
+    st.session_state.repo_loaded = False
+if "rag_chain" not in st.session_state:
+    st.session_state.rag_chain = None
+if "loaded_repo_url" not in st.session_state:
+    st.session_state.loaded_repo_url = ""
+if "chunk_count" not in st.session_state:
+    st.session_state.chunk_count = 0
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "demo_url" not in st.session_state:
+    st.session_state.demo_url = None
+if "pending_load_url" not in st.session_state:
+    st.session_state.pending_load_url = None
+if "questions_dismissed" not in st.session_state:
+    st.session_state.questions_dismissed = False
+
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -22,6 +110,19 @@ with st.sidebar:
         placeholder="https://github.com/owner/repo",
         key="repo_url_input"
     )
+
+    # demo pills
+    st.caption("✨ Try a demo:")
+    pill_cols = st.columns(3)
+    for i, demo in enumerate(DEMO_REPOS):
+        with pill_cols[i]:
+            if st.button(
+                demo["name"],
+                key=f"pill_{demo['name']}",
+                use_container_width=True
+            ):
+                st.session_state.pending_load_url = demo["repo_url"]
+                st.rerun()
 
     filter_option = st.selectbox(
         "Search scope",
@@ -37,8 +138,8 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.rerun()
 
-    if "repo_loaded" in st.session_state and st.session_state.repo_loaded:
-        st.success(f"✅ Loaded")
+    if st.session_state.repo_loaded:
+        st.success("✅ Loaded")
         st.caption(st.session_state.loaded_repo_url)
         st.caption(f"Chunks indexed: {st.session_state.chunk_count}")
 
@@ -46,55 +147,81 @@ with st.sidebar:
     st.caption("Built with LangChain · ChromaDB · Groq · MiniLM")
 
 
-# ── Session state init ────────────────────────────────────────────────────────
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# ── Determine URL to load ─────────────────────────────────────────────────────
+url_to_load = None
 
-if "repo_loaded" not in st.session_state:
-    st.session_state.repo_loaded = False
-
-if "rag_chain" not in st.session_state:
-    st.session_state.rag_chain = None
-
-if "loaded_repo_url" not in st.session_state:
-    st.session_state.loaded_repo_url = ""
-
-if "chunk_count" not in st.session_state:
-    st.session_state.chunk_count = 0
+if load_btn and repo_url.strip():
+    url_to_load = repo_url.strip()
+elif st.session_state.pending_load_url:
+    url_to_load = st.session_state.pending_load_url
+    st.session_state.pending_load_url = None
 
 
 # ── Repo loading ──────────────────────────────────────────────────────────────
-if load_btn and repo_url.strip():
-    with st.spinner("Fetching repo files, issues & PRs..."):
-        try:
-            raw_docs = ingest_repo(repo_url.strip())
-            chunks = chunk_documents(raw_docs)
+def load_repo(url: str):
+    repo_name = url.strip().rstrip("/")
+    repo_name = "/".join(repo_name.replace("https://", "").replace("http://", "").split("/")[1:3])
+    collection_name = repo_name.replace("/", "_").replace("-", "_").lower()
+    persist_dir = os.path.join("./chroma_db", collection_name)
 
-            repo_name = repo_url.strip().rstrip("/")
-            repo_name = "/".join(repo_name.replace("https://", "").replace("http://", "").split("/")[1:3])
+    doc_type_map = {
+        "All (code + issues + PRs)": None,
+        "Code only": "code",
+        "Issues only": "issue",
+        "Pull Requests only": "pull_request"
+    }
+    doc_type = doc_type_map[filter_option]
 
-            vs = build_vector_store(chunks, repo_name)
-
-            doc_type_map = {
-                "All (code + issues + PRs)": None,
-                "Code only": "code",
-                "Issues only": "issue",
-                "Pull Requests only": "pull_request"
-            }
-            doc_type = doc_type_map[filter_option]
+    if os.path.exists(persist_dir):
+        with st.status("Loading cached repository...", expanded=True) as status:
+            st.write("📦 Found existing index, loading from cache...")
+            vs = load_vector_store(repo_name)
             retriever = get_retriever(vs, doc_type)
             chain = build_rag_chain(retriever)
-
             st.session_state.rag_chain = chain
+            st.session_state.vector_store = vs
+            st.session_state.questions_dismissed = False
             st.session_state.repo_loaded = True
-            st.session_state.loaded_repo_url = repo_url.strip()
-            st.session_state.chunk_count = len(chunks)
+            st.session_state.loaded_repo_url = url
             st.session_state.chat_history = []
+            status.update(label="✅ Repository loaded from cache!", state="complete")
+        st.rerun()
+    else:
+        with st.status("Loading repository...", expanded=True) as status:
+            try:
+                st.write("🔍 Scanning repository tree...")
+                raw_docs = ingest_repo(url)
+                st.write(f"✅ Fetched {len(raw_docs)} documents (files, issues, PRs)")
+                estimated = estimate_load_time(len(raw_docs))
+                st.info(f"⏱️ Estimated remaining time: {estimated}")
+                if len(raw_docs) > 1500:
+                    st.warning(f"⚠️ Large repository ({len(raw_docs)} documents). This may take several minutes.")
+                st.write("✂️ Splitting content into chunks...")
+                chunks = chunk_documents(raw_docs)
+                st.write(f"✅ Created {len(chunks)} chunks")
+                st.write("🧠 Generating embeddings and building vector store...")
+                vs = build_vector_store(chunks, repo_name)
+                st.write("✅ Vector store ready")
+                retriever = get_retriever(vs, doc_type)
+                chain = build_rag_chain(retriever)
+                st.session_state.rag_chain = chain
+                st.session_state.vector_store = vs
+                st.session_state.repo_loaded = True
+                st.session_state.loaded_repo_url = url
+                st.session_state.chunk_count = len(chunks)
+                st.session_state.chat_history = []
+                status.update(label="✅ Repository loaded successfully!", state="complete")
+                st.rerun()
+            except RepoTooLargeError as e:
+                status.update(label="❌ Repository too large", state="error")
+                st.error(str(e))
+            except Exception as e:
+                status.update(label="❌ Failed to load repository", state="error")
+                st.error(f"Error: {str(e)}")
 
-            st.rerun()
 
-        except Exception as e:
-            st.error(f"Failed to load repo: {str(e)}")
+if url_to_load:
+    load_repo(url_to_load)
 
 
 # ── Main chat area ────────────────────────────────────────────────────────────
@@ -126,6 +253,18 @@ if not st.session_state.repo_loaded:
         st.markdown("- Any PRs related to performance?")
 
 else:
+    # suggested questions at top of chat
+    if not st.session_state.chat_history and not st.session_state.questions_dismissed:
+        suggested = get_suggested_questions(st.session_state.loaded_repo_url)
+        st.markdown("**💡 Suggested questions to get started:**")
+        sq_cols = st.columns(3)
+        for i, q in enumerate(suggested):
+            with sq_cols[i]:
+                if st.button(q, key=f"sq_{i}", use_container_width=True):
+                    st.session_state.pending_question = q
+                    st.session_state.questions_dismissed = True
+                    st.rerun()
+
     # render chat history
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
@@ -135,20 +274,26 @@ else:
                     for src in msg["sources"]:
                         st.caption(src)
 
-    # chat input
+    # handle suggested question click
+    if "pending_question" not in st.session_state:
+        st.session_state.pending_question = None
+
     user_input = st.chat_input("Ask anything about this repository...")
 
-    if user_input:
-        # show user message
-        with st.chat_message("user"):
-            st.markdown(user_input)
+    # use pending question if set, otherwise use chat input
+    final_input = st.session_state.pending_question or user_input
+    if st.session_state.pending_question:
+        st.session_state.pending_question = None
 
-        # get answer
+    if final_input:
+        with st.chat_message("user"):
+            st.markdown(final_input)
+
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 result = run_query(
                     st.session_state.rag_chain,
-                    user_input,
+                    final_input,
                     format_chat_history(st.session_state.chat_history)
                 )
                 st.markdown(result["answer"])
@@ -156,10 +301,9 @@ else:
                     for src in result["sources"]:
                         st.caption(src)
 
-        # update history
         st.session_state.chat_history.append({
             "role": "user",
-            "content": user_input
+            "content": final_input
         })
         st.session_state.chat_history.append({
             "role": "assistant",

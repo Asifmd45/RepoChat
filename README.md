@@ -1,323 +1,165 @@
 # 🐙 RepoChat — Chat with Any GitHub Repository
 
-RepoChat is an AI-powered **Retrieval-Augmented Generation (RAG)** application that lets you chat with any **public GitHub repository** using natural language.
-
-Instead of manually browsing source code, issues, and pull requests, simply ask questions like:
-
-* *"What does this project do?"*
-* *"How does authentication work?"*
-* *"Show me unassigned issues."*
-* *"Explain the retrieval pipeline."*
-
-RepoChat retrieves the most relevant repository content using semantic search and generates accurate, context-aware answers powered by Groq LLMs.
+RepoChat is an AI-powered RAG (Retrieval-Augmented Generation) application that lets you have a conversation with any public GitHub repository. Understand codebases instantly, explore open issues, and navigate pull requests — all through natural language.
 
 ---
 
-# 🎯 Use Cases
+## 🎯 Use Cases
 
-* 🚀 **New Contributors** — Understand an unfamiliar codebase quickly.
-* 🛠️ **Open Source Contributors** — Discover issues, explore PRs, and find good first contributions.
-* 📚 **Developers Evaluating Libraries** — Learn a project without reading every file manually.
-* 🤖 **AI-Assisted Code Exploration** — Ask questions about architecture, functions, and implementation details.
-
----
-
-# ✨ Features
-
-* 🔍 **Codebase Understanding**
-
-  * Explain project architecture
-  * Understand files, classes, and functions
-  * Explore technologies used
-
-* 🐛 **Issue Exploration**
-
-  * Search open issues
-  * Filter by assignee or label
-  * Discover good first issues
-
-* 🔀 **Pull Request Navigation**
-
-  * Summarize PRs
-  * Understand changes
-  * Identify contributors
-
-* 💬 **Conversational Memory**
-
-  * Supports follow-up questions
-  * Maintains chat history automatically
-
-* 🎯 **Context-Aware Retrieval**
-
-  * Search across:
-
-    * Code
-    * Issues
-    * Pull Requests
-  * Filter retrieval by document type
-
-* ⚡ **Fast Inference**
-
-  * Powered by Groq's ultra-fast inference engine
+- **New contributors** — Understand an unfamiliar codebase without reading every file
+- **Open source contributors** — Find unassigned issues, explore PRs, identify where to start
+- **Developers evaluating libraries** — Ask questions instead of digging through docs
 
 ---
 
-# 🏗️ Architecture
+## ✨ Features
 
-```text
-                 GitHub Repository URL
-                          │
-                          ▼
-                GitHub API (PyGithub)
-                          │
-                          ▼
-        Files + Issues + Pull Requests
-                          │
-                          ▼
-     Code-Aware Document Chunking (LangChain)
-                          │
-                          ▼
-       HuggingFace MiniLM Embeddings
-                          │
-                          ▼
-         ChromaDB Vector Database
-     (Cosine Similarity + MMR Retrieval)
-                          │
-                          ▼
-        LangChain LCEL Retrieval Chain
-      (History-Aware Conversational RAG)
-                          │
-                          ▼
-          Groq LLM (Llama 3.1 Instant)
-                          │
-                          ▼
-             Streamlit Chat Interface
+- 🔍 **Codebase understanding** — Ask about architecture, specific files, functions, and tech stack
+- 🐛 **Issue exploration** — Query open issues, filter by assignee or label
+- 🔀 **PR navigation** — Understand what each PR changes and who authored it
+- 💬 **Conversational memory** — Follow-up questions maintain full chat context
+- 🎯 **Scope filtering** — Search across all content or filter to code / issues / PRs only
+- ⚡ **Fast inference** — Powered by Groq's LPU for near-instant responses
+- 📦 **Smart caching** — Already-loaded repos reload instantly from disk
+- 🚀 **Demo repos** — One-click load for micrograd, Flask, and Express
+
+---
+
+## 🏗️ Architecture
+
+```
+GitHub Repo URL
+      ↓
+GitHub API — get_git_tree() [1 API call for full tree]
+      ↓
+Parallel get_git_blob() + Issues + PRs [ThreadPoolExecutor, 20 workers]
+      ↓
+Files + Issues + PRs (raw documents with metadata)
+      ↓
+Code-aware Chunker (RecursiveCharacterTextSplitter)
+      ↓
+MiniLM Embeddings (HuggingFace)
+      ↓
+ChromaDB Vector Store (cosine similarity, MMR retrieval)
+      ↓
+LangChain LCEL Chain (history-aware retriever + stuff documents)
+      ↓
+Groq LLM (llama-3.1-8b-instant)
+      ↓
+Streamlit Chat UI
 ```
 
 ---
 
-# 🛠️ Tech Stack
+## 🛠️ Tech Stack
 
-| Layer              | Technology                              |
-| ------------------ | --------------------------------------- |
-| Frontend           | Streamlit                               |
-| LLM                | Groq API (Llama 3.1 Instant)            |
-| Embeddings         | HuggingFace MiniLM (`all-MiniLM-L6-v2`) |
-| Vector Store       | ChromaDB                                |
-| Retrieval          | Cosine Similarity + MMR                 |
-| Orchestration      | LangChain LCEL                          |
-| GitHub Integration | PyGithub                                |
-| Language           | Python 3.10+                            |
+| Layer | Technology |
+|---|---|
+| Frontend | Streamlit |
+| LLM | Groq API — llama-3.1-8b-instant |
+| Embeddings | HuggingFace MiniLM (all-MiniLM-L6-v2) |
+| Vector Store | ChromaDB (MMR retrieval, cosine similarity) |
+| Orchestration | LangChain LCEL |
+| GitHub Integration | PyGithub |
+| Language | Python 3.10+ |
 
 ---
 
-# 🚀 Getting Started
+## 🚀 Getting Started
 
-## 1. Clone the Repository
-
+### 1. Clone the repository
 ```bash
-git clone https://github.com/Asifmd45/github-repo-rag.git
-cd github-repo-rag
+git clone https://github.com/Asifmd45/RepoChat.git
+cd RepoChat
 ```
 
----
-
-## 2. Create a Virtual Environment
-
-### Windows
-
+### 2. Create virtual environment
 ```bash
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Mac/Linux
 ```
 
-### macOS / Linux
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
----
-
-## 3. Install Dependencies
-
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
----
+### 4. Set up environment variables
 
-## 4. Configure Environment Variables
-
-Create a `.env` file in the project root.
-
-```env
+Create a `.env` file in the root:
+```
 GITHUB_TOKEN=your_github_personal_access_token
 GROQ_API_KEY=your_groq_api_key
 ```
 
-### GitHub Personal Access Token
+- GitHub token: [github.com/settings/tokens](https://github.com/settings/tokens) — select `repo` scope
+- Groq API key: [console.groq.com](https://console.groq.com)
 
-Generate one from:
-
-```
-https://github.com/settings/tokens
-```
-
-Recommended permission:
-
-* `repo`
-
-### Groq API Key
-
-Generate one from:
-
-```
-https://console.groq.com
-```
-
----
-
-## 5. Launch the Application
-
+### 5. Run the app
 ```bash
 streamlit run app.py
 ```
 
 ---
 
-# 💬 Example Questions
+## 💬 Example Questions
 
-## Codebase
+**Codebase:**
+- `What does this project do?`
+- `What is the overall architecture?`
+- `How does authentication work?`
+- `Explain the main entry point`
 
-* What does this project do?
-* Explain the overall architecture.
-* How does authentication work?
-* Explain the main entry point.
-* Which embedding model is used?
-* How does retrieval work?
+**Issues:**
+- `Show me unassigned open issues`
+- `Any good first issues available?`
+- `What bugs are currently reported?`
 
-## Issues
-
-* Show me open issues.
-* Show me unassigned issues.
-* Are there any good first issues?
-* What bugs are currently reported?
-
-## Pull Requests
-
-* What PRs are currently open?
-* Who contributed recently?
-* Summarize the latest PR.
+**Pull Requests:**
+- `What PRs are currently open?`
+- `Who is actively contributing?`
 
 ---
 
-# 📁 Project Structure
+## 📁 Project Structure
 
-```text
-github-repo-rag/
-│
-├── app.py
-├── github_ingestor.py
-├── chunker.py
-├── vector_store.py
-├── rag_chain.py
-├── requirements.txt
-├── .env
+```
+RepoChat/
+├── app.py                  # Streamlit UI
+├── github_ingestor.py      # GitHub API — tree + blob fetching, issues, PRs
+├── chunker.py              # Code-aware document chunking
+├── vector_store.py         # ChromaDB setup and MMR retrieval
+├── rag_chain.py            # LangChain LCEL chain with Groq
+├── .env                    # API keys (not committed)
 ├── .gitignore
+├── requirements.txt
 └── README.md
 ```
 
-| File                 | Purpose                                             |
-| -------------------- | --------------------------------------------------- |
-| `app.py`             | Streamlit user interface                            |
-| `github_ingestor.py` | Fetches repository files, issues, and pull requests |
-| `chunker.py`         | Splits repository content into semantic chunks      |
-| `vector_store.py`    | Creates and loads the ChromaDB vector database      |
-| `rag_chain.py`       | Builds the conversational RAG pipeline              |
+---
+
+## 🔑 How It Works
+
+1. **Size check** — Tree API call (1 second) counts valid files upfront; repos over 600 files are flagged before ingestion starts
+2. **Ingestion** — `get_git_tree(recursive=True)` fetches the entire file tree in one API call; file content fetched in parallel via `get_git_blob(sha)`
+3. **Chunking** — Type-aware strategies: code splits at function boundaries, markdown at headers, issues stay whole
+4. **Embedding** — Each chunk embedded with MiniLM and stored in ChromaDB with metadata (type, source, issue number, assignee)
+5. **Caching** — Already-indexed repos load from disk instantly on repeat visits
+6. **Retrieval** — MMR fetches 20 candidates, returns 8 diverse relevant chunks
+7. **Generation** — History-aware chain reformulates follow-up questions; Groq LLM generates grounded answers with sources
 
 ---
 
-# 🔑 How It Works
+## ⚠️ Limitations
 
-### 1. Repository Ingestion
-
-PyGithub downloads:
-
-* Repository files
-* Open issues
-* Pull requests
+- Only works with **public** GitHub repositories
+- Repos over **600 files** are blocked upfront (GitHub API rate limit protection)
+- Groq free tier: 6,000 tokens/minute, 500,000 tokens/day
+- Only **open** issues and PRs are indexed (closed/merged not included)
 
 ---
 
-### 2. Chunking
+## 👤 Author
 
-Documents are split using type-aware strategies:
-
-* Code → logical code chunks
-* Markdown → section-based chunks
-* Issues & PRs → structured text chunks
-
----
-
-### 3. Embedding
-
-Each chunk is converted into vector embeddings using:
-
-```
-sentence-transformers/all-MiniLM-L6-v2
-```
-
-Metadata such as:
-
-* source
-* document type
-* issue number
-* assignee
-
-is stored alongside each embedding.
-
----
-
-### 4. Retrieval
-
-The retriever performs:
-
-* Semantic similarity search
-* Maximum Marginal Relevance (MMR)
-
-This retrieves diverse and relevant context for each query.
-
----
-
-### 5. Response Generation
-
-LangChain:
-
-1. Reformulates follow-up questions using chat history.
-2. Retrieves relevant documents.
-3. Injects retrieved context into the prompt.
-4. Generates an answer using Groq LLM.
-5. Returns the response along with source references.
-
----
-
-# ⚠️ Limitations
-
-* Supports **public GitHub repositories only**
-* Large repositories (1000+ files) may require several minutes for indexing
-* Response quality depends on retrieved context
-* Subject to Groq API rate limits
-
----
-
-# 👤 Author
-
-**Asif MD**
-
-GitHub: https://github.com/Asifmd45
-
----
-
-## ⭐ If you found this project useful, consider giving it a star!
+**Asif MD** — [github.com/Asifmd45](https://github.com/Asifmd45)

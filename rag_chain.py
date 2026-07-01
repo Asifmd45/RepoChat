@@ -44,10 +44,17 @@ Use the retrieved context below to answer the user's question accurately.
 - For code questions: explain what the code does, how it works, key functions/classes involved.
 - For issue questions: summarize the issue, its labels, and whether it is assigned or not.
 - For PR questions: explain what the PR changes and who authored it.
+- For tech stack questions: list ALL technologies found — languages, frameworks, 
+  libraries, databases, deployment tools. Check package.json, requirements.txt, 
+  and README for this information.
 - For architecture questions: describe the full system — frontend, backend, database, ML components.
-- For property prediction questions: list all specific properties predicted by the model.
-- If the answer is partially in the context, use what's available and say what's unclear.
-- Only say "not found" if the context has absolutely zero relevant information.
+- For property/field/list questions: if the context contains a class, schema, or structured list 
+  defining multiple items (e.g. a Pydantic model, database schema, enum, or config object), you MUST 
+  include EVERY item from that structure in your answer. Before finalizing your answer, count the 
+  number of fields/items visible in the context and verify your answer mentions that same count.
+- If the answer is partially in the context, use ONLY what's explicitly stated and clearly say what's missing.
+- NEVER speculate, guess, or infer technical details (platforms, tools, architecture choices) that are not explicitly written in the context, even if they seem technically plausible.
+- If you catch yourself about to say "likely" or "probably" about a technical fact, STOP and instead say the context doesn't specify that detail.
 - Do NOT hallucinate. Stick strictly to the context.
 
 Context:
