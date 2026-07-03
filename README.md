@@ -3,6 +3,9 @@
 RepoChat is an AI-powered RAG (Retrieval-Augmented Generation) application that lets you have a conversation with any public GitHub repository. Understand codebases instantly, explore open issues, and navigate pull requests — all through natural language.
 
 ---
+## 🎬 Demo
+
+![RepoChat Demo](https://github.com/user-attachments/assets/0b345555-8874-4c5e-a0e7-e11df43e0fbe)
 
 ## 🎯 Use Cases
 
