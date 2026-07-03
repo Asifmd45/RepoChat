@@ -122,6 +122,7 @@ with st.sidebar:
                 use_container_width=True
             ):
                 st.session_state.pending_load_url = demo["repo_url"]
+                st.session_state.repo_url_input = demo["repo_url"]
                 st.rerun()
 
     filter_option = st.selectbox(
