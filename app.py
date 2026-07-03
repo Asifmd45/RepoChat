@@ -97,6 +97,8 @@ if "pending_load_url" not in st.session_state:
     st.session_state.pending_load_url = None
 if "questions_dismissed" not in st.session_state:
     st.session_state.questions_dismissed = False
+if "prefill_url" not in st.session_state:
+    st.session_state.prefill_url = ""
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ with st.sidebar:
 
     repo_url = st.text_input(
         "GitHub Repo URL",
+        value=st.session_state.prefill_url,
         placeholder="https://github.com/owner/repo",
         key="repo_url_input"
     )
@@ -121,8 +124,8 @@ with st.sidebar:
                 key=f"pill_{demo['name']}",
                 use_container_width=True
             ):
+                st.session_state.prefill_url = demo["repo_url"]
                 st.session_state.pending_load_url = demo["repo_url"]
-                st.session_state.repo_url_input = demo["repo_url"]
                 st.rerun()
 
     filter_option = st.selectbox(
@@ -185,6 +188,7 @@ def load_repo(url: str):
             st.session_state.repo_loaded = True
             st.session_state.loaded_repo_url = url
             st.session_state.chat_history = []
+            st.session_state.prefill_url = ""
             status.update(label="✅ Repository loaded from cache!", state="complete")
         st.rerun()
     else:
